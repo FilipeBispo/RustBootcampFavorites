@@ -1,14 +1,69 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use anchor_lang::prelude::*;
 
-#[cfg(test)]
-mod tests {
+declare_id!("3Nn6sCoaHjFwfMkrnwPbtGhNWpaYAVnMa4T5sovZjzpB");
+
+// Anchor programs always use 8 bits for the discriminator
+pub const ANCHOR_DISCRIMINATOR_SIZE: usize = 8;
+
+// Our Solana program!
+#[program]
+pub mod favorites {
     use super::*;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    // Our instruction handler! It sets the user's favorite number and color
+    pub fn set_favorites(
+        context: Context<SetFavorites>,
+        number: u64,
+        color: String,
+        hobbies: Vec<String>,
+    ) -> Result<()> {
+        let user_public_key = context.accounts.user.key();
+        msg!("Greetings from {}", context.program_id);
+        msg!(
+            "User {}'s favorite number is {}, favorite color is: {}",
+            user_public_key,
+            number,
+            color
+        );
+
+        msg!("User's hobbies are: {:?}", hobbies);
+
+        context.accounts.favorites.set_inner(Favorites {
+            number,
+            color,
+            hobbies,
+        });
+        Ok(())
     }
+
+    // We can also add a get_favorites instruction handler to return the user's favorite number and color
+}
+
+// What we will put inside the Favorites PDA
+#[account]
+#[derive(InitSpace)]
+pub struct Favorites {
+    pub number: u64,
+
+    #[max_len(50)]
+    pub color: String,
+
+    #[max_len(5, 50)]
+    pub hobbies: Vec<String>,
+}
+// When people call the set_favorites instruction, they will need to provide the accounts that will be modifed. This keeps Solana fast!
+#[derive(Accounts)]
+pub struct SetFavorites<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = ANCHOR_DISCRIMINATOR_SIZE + Favorites::INIT_SPACE,
+        seeds=[b"favorites", user.key().as_ref()],
+    bump)]
+    pub favorites: Account<'info, Favorites>,
+
+    pub system_program: Program<'info, System>,
 }
